@@ -1,0 +1,29 @@
+[package]
+name = "scylla"
+version = "0.1.0"
+authors = ["Safin Singh <safin.singh@gmail.com>"]
+edition = "2018"
+
+[lib]
+path = "src/lib.rs"
+name = "libscylla"
+
+[dependencies]
+anyhow = "1.0"
+askama = "0.10.5"
+askama_tide = "0.13"
+async-std = { version = "1.9", features = ["attributes", "unstable"] }
+async-trait = "0.1"
+core_extensions = { version = "0.1", default-features = false, features = ["std"] }
+clap = "3.0.0-beta.2"
+chrono = "0.4"
+dotenv = "0.15"
+futures = "0.3"
+hocon = { version = "0.4", default-features = false, features = ["serde-support"] }
+log = "0.4"
+rand = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sqlx = { version = "0.5", features = ["runtime-async-std-rustls", "postgres", "macros", "offline"] }
+tide = "0.16"
+tide-sqlx = { version = "0.5", features = ["rustls", "postgres"] }

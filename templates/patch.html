@@ -1,0 +1,9 @@
+{% include "head.html" %}
+<div class="container">
+	<h1 class="text-center text-white">{{ round }}</h1>
+	<h2 class="text-white">Patch Server Files</h2>
+	{% for file in files %}
+		<a href="/patch-files/{{ file }}" class="link-info">{{ file }}</a>
+	{% endfor %}
+</div>
+{% include "footer.html" %}

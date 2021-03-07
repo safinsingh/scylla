@@ -1,0 +1,3 @@
+ALTER TABLE services
+	ALTER COLUMN check_count SET DEFAULT 1,
+	ALTER COLUMN uptime_score SET DEFAULT 1;

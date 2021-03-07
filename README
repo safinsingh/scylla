@@ -1,0 +1,22 @@
+scylla
+======
+
+A high-performance RvB engine to emulate the CyberPatriot National Finals competition.
+
+`scylla` can:
+
+- Perform service uptime checks at a defined interval
+- Notify teams of and score injects
+- Host a patch server
+- Display per-service SLA count and uptime percentages
+- Display a leaderboard
+
+`scylla` currently has checks for the following:
+
+- [x] establishing a connection over TCP
+- [x] establishing a connection over UDP
+- [ ] querying DNS records
+- [ ] sending HTTP requests and verifying page content
+- [ ] retrieving files over FTP/SMB and verifying hashes
+
+`scylla`'s documentation is a work in progress.

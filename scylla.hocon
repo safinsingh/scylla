@@ -1,0 +1,86 @@
+# round title
+round: "Cool round"
+
+# round start time in UTC
+# format: mm-dd-YYYY HH:MM
+start: "03/06/2021 19:00"
+
+# location of patch server files
+patchServer: "patch"
+
+# global check settings
+checks: {
+	# average seconds in between checks
+	interval: 10
+
+	# maximum deviation from average interval
+	jitter: 1
+}
+
+# global team settings
+teams: {
+	# unique team name
+	"team 1": {
+		# `c` where a.b.c.d is the engine's IP
+		subnet: 0
+
+		# team password
+		password: "pass"
+	}
+
+	"team 2": {
+		subnet: 1
+		password: "pass"
+	}
+}
+
+# list of all boxes
+boxes: {
+	# box nickname
+	"my cool box": {
+		# `d` where a.b.c.d is the engine's IP
+		host: 157
+
+		# services to score
+		services: [{
+			# service id (must be unique!)
+			id: "netcat"
+
+			# connection type
+			type: "tcp"
+
+			# port number (set by default depending on type)
+			port: 4444
+		}]
+	}
+}
+
+injects: [{
+	# offset in minutes from the beginning of the
+	# competition to announce the inject
+	offset: 30
+
+	# number of minutes to give blue teams before
+	# scoring the inject
+	duration: 60
+
+	# services to add to scoreboard for this specific
+	# inject
+	newServices: {
+		"my cool box": [{
+			# see boxes."my cool box".services
+			id: "ssh"
+			type: "tcp"
+			port: 22
+		}]
+	}
+
+	# inject metadata
+	meta: {
+		# inject title
+		title: "Do HTTPS people"
+
+		# inject description
+		description: "here is a long description about why you should set up HTTPS on your box."
+	}
+}]

@@ -1,0 +1,3 @@
+ALTER TABLE services
+	ADD COLUMN latest_uptime_status BOOLEAN
+		NOT NULL DEFAULT TRUE;

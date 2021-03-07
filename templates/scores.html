@@ -1,0 +1,57 @@
+{% include "head.html" %}
+<div class="container">
+	<h1 class="text-center text-white">{{ round }}</h1>
+	<table class="table table-dark table-bordered text-center">
+		<thead>
+			<th></th>
+			{% for service in services %}
+				<th scope="col">{{ service.vm_id }} {{ service.svc_id }}</th>
+			{% endfor %}
+		</thead>
+		<tbody>
+			{% for (team_name, team_meta) in info %}
+				<tr>
+					<th scope="row">{{ team_name }}</th>
+					{% for svc in team_meta %}
+						{% match mode %}
+						{% when TplMode::Scores %}
+							{% if svc.latest_uptime_status %}
+								<td>
+									<i class="bi bi-check-circle-fill text-success"></i>
+								</td>
+							{% else %}
+								<td>
+									<i class="bi bi-x-circle-fill text-danger"></i>
+								</td>
+							{% endif %}
+						{% when TplMode::Uptime %}
+							{% if svc.is_positive() %}
+								<td class="text-success">{{ svc.get_percentage() }}%</td>
+							{% else %}
+								<td class="text-danger">{{ svc.get_percentage() }}%</td>
+							{% endif %}
+						{% when TplMode::SLAs %}
+							{% if svc.sla_count == 0 %}
+								<td class="text-success">0 SLAs</td>
+							{% else %}
+								<td class="text-danger">{{ svc.sla_count }} SLAs</td>
+							{% endif %}
+						{% endmatch %}
+					{% endfor %}
+				</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+	{% if injects.len() > 0 %}
+		<h1 class="text-center text-white">Injects</h1>
+		{% for (inject, due) in injects %}
+			<div class="alert alert-primary" role="alert">
+				<h4 class="alert-heading">{{ inject.meta.title }}</h4>
+				<p>{{ inject.meta.description }}</p>
+				<hr />
+				<p>Due: {{ due }}</p>
+			</div>
+		{% endfor %}
+	{% endif %}
+</div>
+{% include "footer.html" %}
