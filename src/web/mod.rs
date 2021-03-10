@@ -8,6 +8,7 @@ use crate::{
 		PgPool,
 	},
 };
+use anyhow::{Context as _, Result};
 use sqlx::Postgres;
 use std::{fs, sync::Arc};
 use tide::Request;
@@ -59,7 +60,7 @@ async fn leaderboard(req: Request<Arc<Cfg>>) -> tide::Result {
 	.into())
 }
 
-pub async fn start(pool: PgPool, cfg: Arc<Cfg>) {
+pub async fn start(pool: PgPool, cfg: Arc<Cfg>) -> Result<()> {
 	let mut app = tide::with_state(cfg.clone());
 
 	app.with(SQLxMiddleware::from(pool));
@@ -73,5 +74,7 @@ pub async fn start(pool: PgPool, cfg: Arc<Cfg>) {
 		.serve_dir(&*cfg.patch_server)
 		.unwrap();
 
-	app.listen("0.0.0.0:5112").await.unwrap();
+	app.listen(format!("0.0.0.0:{}", cfg.web.port))
+		.await
+		.context("Failed to start web server!")
 }

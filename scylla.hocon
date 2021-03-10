@@ -1,86 +1,98 @@
 # round title
-round: "Cool round"
+round = "Cool round"
 
 # round start time in UTC
 # format: mm-dd-YYYY HH:MM
-start: "03/06/2021 19:00"
+start = "03/06/2021 19:00"
 
 # location of patch server files
-patchServer: "patch"
+patchServer = "patch"
+
+# postgres database url
+database = "postgres://user:password@localhost:5432/scylla"
 
 # global check settings
-checks: {
+checks = {
 	# average seconds in between checks
-	interval: 10
+	interval = 10
 
 	# maximum deviation from average interval
-	jitter: 1
+	jitter = 1
+
+	# check connection timeout, in seconds
+	timeout = 5
+}
+
+# global web interface settings
+web = {
+	# port to run web interface on
+	port = 5005
 }
 
 # global team settings
-teams: {
+teams = {
 	# unique team name
-	"team 1": {
+	"team 1" = {
 		# `c` where a.b.c.d is the engine's IP
-		subnet: 0
+		subnet = 0
 
 		# team password
-		password: "pass"
+		password = "pass"
 	}
 
-	"team 2": {
-		subnet: 1
-		password: "pass"
+	"team 2" = {
+		subnet = 1
+		password = "pass"
 	}
 }
 
 # list of all boxes
-boxes: {
+boxes = {
 	# box nickname
-	"my cool box": {
+	"my cool box" = {
 		# `d` where a.b.c.d is the engine's IP
-		host: 157
+		host = 157
 
 		# services to score
-		services: [{
+		services = [{
 			# service id (must be unique!)
-			id: "netcat"
+			id = "netcat"
 
 			# connection type
-			type: "tcp"
+			type = "tcp"
 
 			# port number (set by default depending on type)
-			port: 4444
+			port = 4444
 		}]
 	}
 }
 
-injects: [{
+injects = [{
 	# offset in minutes from the beginning of the
 	# competition to announce the inject
-	offset: 30
+	offset = 30
 
 	# number of minutes to give blue teams before
 	# scoring the inject
-	duration: 60
+	duration = 60
 
 	# services to add to scoreboard for this specific
 	# inject
-	newServices: {
-		"my cool box": [{
+	newServices = {
+		"my cool box" = [{
 			# see boxes."my cool box".services
-			id: "ssh"
-			type: "tcp"
-			port: 22
+			id = "ssh"
+			type = "tcp"
+			port = 22
 		}]
 	}
 
 	# inject metadata
-	meta: {
+	meta = {
 		# inject title
-		title: "Do HTTPS people"
+		title = "Do HTTPS people"
 
 		# inject description
-		description: "here is a long description about why you should set up HTTPS on your box."
+		description = "here is a long description about why you should set up HTTPS on your box."
 	}
 }]

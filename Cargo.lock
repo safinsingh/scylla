@@ -1801,7 +1801,6 @@ dependencies = [
  "chrono",
  "clap",
  "core_extensions",
- "dotenv",
  "futures",
  "hocon",
  "log",

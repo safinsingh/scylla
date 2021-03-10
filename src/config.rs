@@ -7,10 +7,7 @@ use async_std::{
 use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::{
-	collections::HashMap, convert::TryInto, path::PathBuf, sync::Arc,
-	time::Duration,
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 const FIXME: &str = "172.30";
 
@@ -37,18 +34,18 @@ pub struct SharedService {
 
 impl SharedService {
 	pub fn from_config(
-		(svc_id, svc_meta): (&String, &ServiceConfig),
+		svc: &ServiceConfig,
 		(team_id, team_meta): (&String, &Team),
 		(vm_id, vm_meta): (&String, &Vm),
 	) -> Result<Self> {
-		let inner: Box<dyn Service> = match *svc_meta {
-			ServiceConfig::Tcp { port } => Box::new(TcpCheck {
+		let inner: Box<dyn Service> = match svc.ty {
+			ServiceConfigTy::Tcp { port } => Box::new(TcpCheck {
 				sock: get_sock_addr(team_meta, vm_meta, port)?,
 			}),
-			ServiceConfig::Ssh { port } => Box::new(TcpCheck {
+			ServiceConfigTy::Ssh { port } => Box::new(TcpCheck {
 				sock: get_sock_addr(team_meta, vm_meta, port.unwrap_or(22))?,
 			}),
-			ServiceConfig::Udp { port } => Box::new(UdpCheck {
+			ServiceConfigTy::Udp { port } => Box::new(UdpCheck {
 				sock: get_sock_addr(team_meta, vm_meta, port)?,
 			}),
 		};
@@ -58,7 +55,7 @@ impl SharedService {
 			meta: Arc::new(SvcMeta {
 				team_id: team_id.clone(),
 				vm_id: vm_id.clone(),
-				svc_id: svc_id.clone(),
+				svc_id: svc.id.clone(),
 			}),
 		})
 	}
@@ -108,6 +105,8 @@ pub struct Cfg {
 	pub patch_server: PathBuf,
 	#[serde(skip)]
 	pub _services: Mutex<Vec<SharedService>>,
+	pub database: String,
+	pub web: Web,
 }
 
 impl Cfg {
@@ -126,10 +125,18 @@ impl Cfg {
 	}
 }
 
+fn give_me_five() -> u8 { 5 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Team {
-	subnet: u8,
+	#[serde(default = "give_me_five")]
+	pub timeout: u8,
+	pub subnet: u8,
 	pub password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Web {
+	pub port: u16,
 }
 
 #[serde(rename_all = "camelCase")]
@@ -137,7 +144,7 @@ pub struct Team {
 pub struct Inject {
 	pub offset: usize,
 	pub duration: usize,
-	pub new_services: HashMap<String, HashMap<String, ServiceConfig>>,
+	pub new_services: HashMap<String, Vec<ServiceConfig>>,
 	pub meta: InjectMeta,
 }
 
@@ -157,9 +164,7 @@ impl CheckSettings {
 	pub fn get_interval(&self) -> Duration {
 		Duration::from_secs(
 			(self.interval as isize
-				+ rand::thread_rng().gen_range(-self.jitter..self.jitter))
-			.try_into()
-			.unwrap(),
+				+ rand::thread_rng().gen_range(-self.jitter..self.jitter)) as u64,
 		)
 	}
 }
@@ -167,12 +172,19 @@ impl CheckSettings {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Vm {
 	host: u8,
-	pub services: HashMap<String, ServiceConfig>,
+	pub services: Vec<ServiceConfig>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ServiceConfig {
+	pub id: String,
+	#[serde(flatten)]
+	pub ty: ServiceConfigTy,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-#[serde(tag = "type")]
-pub enum ServiceConfig {
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ServiceConfigTy {
 	Tcp { port: u16 },
 	Udp { port: u16 },
 	Ssh { port: Option<u16> },

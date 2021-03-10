@@ -5,7 +5,7 @@ use crate::{
 		PgPool,
 	},
 };
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use async_std::{
 	channel::{Receiver, Sender},
 	stream, task,
@@ -35,12 +35,14 @@ pub trait Service: Send + Sync + Debug {
 		chan: Sender<ChanMsg>,
 		timeout: Duration,
 		cx: Arc<SvcMeta>,
-	) {
+	) -> Result<()> {
 		let message = match self.is_up(timeout).await {
-			Ok(true) => ChanMsg::Uptime(cx),
-			_ => ChanMsg::Error(cx),
+			Ok(true) => ChanMsg::Uptime(cx.clone()),
+			_ => ChanMsg::Error(cx.clone()),
 		};
-		chan.send(message).await.unwrap();
+		chan.send(message).await.with_context(|| {
+			format!("Failed to send poll message to channel: {:?}", cx.clone())
+		})
 	}
 }
 
@@ -73,13 +75,16 @@ pub async fn enter_event_loop(cfg: Arc<Cfg>, tx: Sender<ChanMsg>) {
 	}
 }
 
-pub async fn enter_recv_loop(rx: Receiver<ChanMsg>, pool: PgPool) {
+pub async fn enter_recv_loop(
+	rx: Receiver<ChanMsg>,
+	pool: PgPool,
+) -> Result<()> {
 	loop {
-		let m = rx.recv().await.unwrap();
+		let m = rx.recv().await?;
 		match m {
 			ChanMsg::Uptime(meta) => persist_uptime(&meta, pool.clone()).await,
 			ChanMsg::Error(meta) => persist_downtime(&meta, pool.clone()).await,
-		};
+		}?;
 	}
 }
 

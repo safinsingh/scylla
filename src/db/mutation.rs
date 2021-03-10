@@ -1,7 +1,9 @@
 use super::PgPool;
 use crate::{checks::SvcMeta, config::Cfg};
+use anyhow::{Context, Result};
+use std::sync::Arc;
 
-pub async fn setup(cfg: &Cfg, pool: PgPool) {
+pub async fn setup(cfg: Arc<Cfg>, pool: PgPool) -> Result<()> {
 	for (team_id, team_meta) in cfg.teams.iter() {
 		sqlx::query!(
 			"INSERT INTO teams(team_id, pass) VALUES($1, $2);",
@@ -9,8 +11,7 @@ pub async fn setup(cfg: &Cfg, pool: PgPool) {
 			team_meta.password
 		)
 		.execute(&pool)
-		.await
-		.unwrap();
+		.await?;
 
 		for (vm_id, vm_meta) in cfg.boxes.iter() {
 			sqlx::query!(
@@ -19,30 +20,29 @@ pub async fn setup(cfg: &Cfg, pool: PgPool) {
 				team_id
 			)
 			.execute(&pool)
-			.await
-			.unwrap();
+			.await?;
 
-			for (svc_id, _) in vm_meta.services.iter() {
+			for svc in vm_meta.services.iter() {
 				sqlx::query!(
 					r#"
 					INSERT INTO services(svc_id, vm_id, team_id)
 						VALUES($1, $2, $3);
 					"#,
-					svc_id,
+					svc.id,
 					vm_id,
 					team_id
 				)
 				.execute(&pool)
-				.await
-				.unwrap();
+				.await?;
 			}
 		}
 	}
 
 	println!("Preparation complete!");
+	Ok(())
 }
 
-pub async fn persist_uptime(meta: &SvcMeta, pool: PgPool) {
+pub async fn persist_uptime(meta: &SvcMeta, pool: PgPool) -> Result<()> {
 	sqlx::query!(
 		r#"
 		UPDATE	services
@@ -60,10 +60,16 @@ pub async fn persist_uptime(meta: &SvcMeta, pool: PgPool) {
 	)
 	.execute(&pool)
 	.await
-	.unwrap();
+	.with_context(|| {
+		format!(
+			"Failed to persist uptime for box: {} - {} - {}!",
+			&*meta.svc_id, &*meta.vm_id, &*meta.team_id,
+		)
+	})
+	.map(|_| ())
 }
 
-pub async fn persist_downtime(meta: &SvcMeta, pool: PgPool) {
+pub async fn persist_downtime(meta: &SvcMeta, pool: PgPool) -> Result<()> {
 	#[derive(sqlx::FromRow, Debug)]
 	struct DowntimeReturn {
 		recurring_down: i32,
@@ -87,14 +93,21 @@ pub async fn persist_downtime(meta: &SvcMeta, pool: PgPool) {
 	)
 	.fetch_one(&pool)
 	.await
-	.unwrap();
+	.with_context(|| {
+		format!(
+			"Failed to persist downtime for box: {} - {} - {}!",
+			&*meta.svc_id, &*meta.vm_id, &*meta.team_id,
+		)
+	})?;
 
 	if service.recurring_down >= 5 {
-		persist_sla(meta, pool).await;
+		persist_sla(meta, pool).await?;
 	}
+
+	Ok(())
 }
 
-pub async fn persist_sla(meta: &SvcMeta, pool: PgPool) {
+pub async fn persist_sla(meta: &SvcMeta, pool: PgPool) -> Result<()> {
 	sqlx::query!(
 		r#"
 		UPDATE	services
@@ -109,5 +122,11 @@ pub async fn persist_sla(meta: &SvcMeta, pool: PgPool) {
 	)
 	.execute(&pool)
 	.await
-	.unwrap();
+	.with_context(|| {
+		format!(
+			"Failed to persist SLA for box: {} - {} - {}!",
+			&*meta.svc_id, &*meta.vm_id, &*meta.team_id,
+		)
+	})
+	.map(|_| ())
 }

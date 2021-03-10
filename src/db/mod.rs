@@ -1,16 +1,13 @@
 pub mod mutation;
 pub mod query;
 
-use dotenv::dotenv;
+use anyhow::{Context as _, Result};
 use sqlx::{pool::PoolOptions, Pool, Postgres};
-use std::env;
 
 pub type PgPool = Pool<Postgres>;
-pub async fn establish_pg_conn() -> PgPool {
-	dotenv().ok();
-
-	let database_url =
-		env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-
-	PoolOptions::default().connect(&database_url).await.unwrap()
+pub async fn establish_pg_conn(database: &str) -> Result<PgPool> {
+	PoolOptions::default()
+		.connect(database)
+		.await
+		.context("Failed to establish connection to PostgreSQL database")
 }

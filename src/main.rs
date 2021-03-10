@@ -11,17 +11,16 @@ use libscylla::{
 
 #[async_std::main]
 async fn main() -> Result<()> {
+	let opts = Opts::parse();
+
 	let content = fs::read_to_string("./scylla.hocon").await?;
 	let cfg = Arc::new(hocon::de::from_str::<Cfg>(&content)?.set_services()?);
-	let pool = establish_pg_conn().await;
+	let pool = establish_pg_conn(&cfg.database).await?;
 
-	let opts = Opts::parse();
 	match opts.subcmd {
-		SubCommand::Prepare => mutation::setup(&*cfg, pool).await,
-		SubCommand::Start => run(cfg, pool).await?,
+		SubCommand::Prepare => mutation::setup(cfg, pool).await,
+		SubCommand::Start => run(cfg, pool).await,
 	}
-
-	Ok(())
 }
 
 async fn run(cfg: Arc<Cfg>, pool: PgPool) -> Result<()> {
@@ -31,13 +30,11 @@ async fn run(cfg: Arc<Cfg>, pool: PgPool) -> Result<()> {
 	task::spawn(enter_event_loop(cfg.clone(), tx));
 
 	// start web server
-	task::spawn(web::start(pool.clone(), cfg.clone())).await;
+	task::spawn(web::start(pool.clone(), cfg.clone()));
 
 	// begin inject waiter
 	task::spawn(injects::wait(cfg.clone()));
 
 	// recieve messages from channel on main task
-	enter_recv_loop(rx, pool.clone()).await;
-
-	Ok(())
+	enter_recv_loop(rx, pool.clone()).await
 }
