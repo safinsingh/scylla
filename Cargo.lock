@@ -96,6 +96,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "async_ftp"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "187c622900c3b3072db7240b00a3e25baa266c94d9b412bce13dd956458155d5"
+dependencies = [
+ "chrono",
+ "lazy_static",
+ "pin-project",
+ "regex",
+ "tokio",
+ "tokio-rustls",
+]
+
+[[package]]
 name = "atoi"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -977,6 +991,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
+
+[[package]]
 name = "memchr"
 version = "2.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1670,12 +1690,14 @@ dependencies = [
  "anyhow",
  "askama",
  "async-trait",
+ "async_ftp",
  "chrono",
  "clap",
  "core_extensions",
  "futures",
  "hocon",
  "log",
+ "md5",
  "rand 0.8.3",
  "reqwest",
  "rocket",

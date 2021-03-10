@@ -1,12 +1,19 @@
-use crate::checks::{tcp::TcpCheck, udp::UdpCheck, Service, SvcMeta};
+use crate::checks::{
+	http::HttpCheck, tcp::TcpCheck, udp::UdpCheck, Service, SvcMeta,
+};
 use anyhow::{Context as _, Result};
 use chrono::{DateTime, Utc};
 use rand::Rng;
-use serde::{Deserialize, Serialize};
+use serde::{
+	de::{self, Visitor},
+	Deserialize, Deserializer, Serialize, Serializer,
+};
 use std::{
 	collections::HashMap,
+	fmt,
 	net::{Ipv4Addr, SocketAddrV4},
 	path::PathBuf,
+	str::FromStr,
 	sync::Arc,
 	time::Duration,
 };
@@ -41,6 +48,8 @@ impl SharedService {
 		(team_id, team_meta): (&String, &Team),
 		(vm_id, vm_meta): (&String, &Vm),
 	) -> Result<Self> {
+		// If there was a way to do this without cloning everywhere, I'd be open
+		// to suggestions...
 		let inner: Box<dyn Service> = match svc.ty {
 			ServiceConfigTy::Tcp { port } => Box::new(TcpCheck {
 				remote: get_sock_addr(team_meta, vm_meta, port)?,
@@ -54,6 +63,16 @@ impl SharedService {
 					Ipv4Addr::new(0, 0, 0, 0),
 					bind_port,
 				),
+			}),
+			ServiceConfigTy::Http {
+				port,
+				ref method,
+				ref content_hash,
+			} => Box::new(HttpCheck {
+				remote: get_sock_addr(team_meta, vm_meta, port.unwrap_or(80))?,
+				method: method.0.clone(),
+				ssl: false,
+				content_hash: content_hash.clone(),
 			}),
 		};
 
@@ -191,10 +210,96 @@ pub struct ServiceConfig {
 	pub ty: ServiceConfigTy,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[derive(Debug, Clone)]
+pub struct HttpMethod(pub reqwest::Method);
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum ServiceConfigTy {
-	Tcp { port: u16 },
-	Udp { port: u16, bind_port: u16 },
-	Ssh { port: Option<u16> },
+	Tcp {
+		port: u16,
+	},
+	Udp {
+		port: u16,
+		bind_port: u16,
+	},
+	Ssh {
+		port: Option<u16>,
+	},
+	Http {
+		port: Option<u16>,
+		method: HttpMethod,
+		content_hash: Option<String>,
+	},
+}
+
+impl Serialize for HttpMethod {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_str(self.0.as_str())
+	}
+}
+
+struct HttpMethodVisitor;
+impl<'de> Visitor<'de> for HttpMethodVisitor {
+	type Value = HttpMethod;
+
+	fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+		write!(
+			formatter,
+			"one of: GET, POST, PUT, DELETE, HEAD, OPTIONS, CONNECT, PATCH, \
+			 TRACE"
+		)
+	}
+
+	fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+	where
+		E: de::Error,
+	{
+		Ok(HttpMethod(
+			reqwest::Method::from_str(v)
+				.map_err(|_| E::custom("Invalid method"))?,
+		))
+	}
+
+	fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+	where
+		E: de::Error,
+	{
+		Ok(HttpMethod(
+			reqwest::Method::from_str(&v)
+				.map_err(|_| E::custom("Invalid method"))?,
+		))
+	}
+
+	fn visit_borrowed_bytes<E>(self, v: &'de [u8]) -> Result<Self::Value, E>
+	where
+		E: de::Error,
+	{
+		Ok(HttpMethod(
+			reqwest::Method::from_bytes(v)
+				.map_err(|_| E::custom("Invalid method"))?,
+		))
+	}
+
+	fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
+	where
+		E: de::Error,
+	{
+		Ok(HttpMethod(
+			reqwest::Method::from_bytes(&v)
+				.map_err(|_| E::custom("Invalid method"))?,
+		))
+	}
+}
+
+impl<'de> Deserialize<'de> for HttpMethod {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		deserializer.deserialize_str(HttpMethodVisitor)
+	}
 }

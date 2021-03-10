@@ -1,3 +1,8 @@
+pub mod http;
+pub mod injects;
+pub mod tcp;
+pub mod udp;
+
 use crate::{
 	config::Cfg,
 	db::{
@@ -90,7 +95,3 @@ pub async fn enter_recv_loop(
 		}?;
 	}
 }
-
-pub mod injects;
-pub mod tcp;
-pub mod udp;
