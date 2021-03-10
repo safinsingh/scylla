@@ -11,18 +11,18 @@ name = "libscylla"
 [dependencies]
 anyhow = "1.0"
 askama = "0.10"
-askama_tide = "0.13"
-async-std = { version = "1.9", features = ["attributes", "unstable"] }
-async-trait = "0.1"
-core_extensions = { version = "0.1", default-features = false, features = ["std"] }
-clap = "3.0.0-beta.2"
+async-trait = "0.1.43"
 chrono = "0.4"
+clap = "3.0.0-beta.2"
+core_extensions = { version = "0.1", default-features = false, features = ["std"] }
 futures = "0.3"
 hocon = { version = "0.4", default-features = false, features = ["serde-support"] }
 log = "0.4"
 rand = "0.8"
+reqwest = "0.11"
+rocket = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "c9d7b4f" }
+rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket.git", rev = "c9d7b4f" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.5", features = ["runtime-async-std-rustls", "postgres", "macros", "offline"] }
-tide = "0.16"
-tide-sqlx = { version = "0.5", features = ["rustls", "postgres"] }
+sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "postgres", "macros", "offline"] }
+tokio = { version = "1", features = ["rt", "net", "time"] }

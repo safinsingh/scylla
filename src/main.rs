@@ -1,5 +1,4 @@
 use anyhow::Result;
-use async_std::{channel, fs, sync::Arc, task};
 use clap::Clap;
 use libscylla::{
 	checks::{enter_event_loop, enter_recv_loop, injects, ChanMsg},
@@ -8,12 +7,14 @@ use libscylla::{
 	db::{establish_pg_conn, mutation, PgPool},
 	web,
 };
+use std::{fs, sync::Arc};
+use tokio::{sync::mpsc, task};
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> Result<()> {
 	let opts = Opts::parse();
 
-	let content = fs::read_to_string("./scylla.hocon").await?;
+	let content = fs::read_to_string("./scylla.hocon")?;
 	let cfg = Arc::new(hocon::de::from_str::<Cfg>(&content)?.set_services()?);
 	let pool = establish_pg_conn(&cfg.database).await?;
 
@@ -24,7 +25,7 @@ async fn main() -> Result<()> {
 }
 
 async fn run(cfg: Arc<Cfg>, pool: PgPool) -> Result<()> {
-	let (tx, rx) = channel::unbounded::<ChanMsg>();
+	let (tx, rx) = mpsc::unbounded_channel::<ChanMsg>();
 
 	// periodically run checks
 	task::spawn(enter_event_loop(cfg.clone(), tx));

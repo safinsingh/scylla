@@ -1,6 +1,6 @@
 pub mod templates;
 
-use self::templates::{info_to_scores, Leaderboard, PatchServer, TplMode};
+use self::templates::{Leaderboard, PatchServer, Scores, TplMode};
 use crate::{
 	config::Cfg,
 	db::{
@@ -8,73 +8,117 @@ use crate::{
 		PgPool,
 	},
 };
-use anyhow::{Context as _, Result};
-use sqlx::Postgres;
-use std::{fs, sync::Arc};
-use tide::Request;
-use tide_sqlx::{SQLxMiddleware, SQLxRequestExt};
+use anyhow::{Context, Result};
+use askama::Template;
+use rocket::{
+	http::Status,
+	response::{content::Html, status::Custom as RocketResult},
+	Config, State,
+};
+use rocket_contrib::serve::StaticFiles;
+use std::{
+	fs,
+	net::{IpAddr, Ipv4Addr},
+	sync::Arc,
+};
 
-pub async fn endpoint(req: Request<Arc<Cfg>>, mode: TplMode) -> tide::Result {
-	let state = req.state();
-	let mut conn = req.sqlx_conn::<Postgres>().await;
-	let teams = get_team_info(&mut *conn).await;
-	let services = get_all_services(&mut *conn).await;
-
-	Ok(info_to_scores(&*state, teams, services, mode).into())
+type TplResult = RocketResult<Html<String>>;
+fn render_tpl<T: Template>(tpl: T) -> TplResult {
+	match tpl.render() {
+		Ok(tpl) => RocketResult(Status::Ok, Html(tpl)),
+		Err(_) => RocketResult(
+			Status::InternalServerError,
+			Html("Error hidden for security purposes.".into()),
+		),
+	}
 }
 
-async fn scores(req: Request<Arc<Cfg>>) -> tide::Result {
-	endpoint(req, TplMode::Scores).await
+pub async fn endpoint<'r>(
+	cfg: State<'r, Arc<Cfg>>,
+	pool: State<'r, PgPool>,
+	mode: TplMode,
+) -> TplResult {
+	let mut conn = pool.acquire().await.unwrap();
+	let teams = get_team_info(&mut conn).await;
+	let services = get_all_services(&mut conn).await;
+
+	render_tpl(Scores::from_info(&*cfg, teams, services, mode))
 }
 
-async fn uptime(req: Request<Arc<Cfg>>) -> tide::Result {
-	endpoint(req, TplMode::Uptime).await
+#[get("/")]
+async fn root<'r>(
+	cfg: State<'r, Arc<Cfg>>,
+	pool: State<'r, PgPool>,
+) -> TplResult {
+	endpoint(cfg, pool, TplMode::Scores).await
 }
 
-async fn slas(req: Request<Arc<Cfg>>) -> tide::Result {
-	endpoint(req, TplMode::SLAs).await
+#[get("/scores")]
+async fn scores<'r>(
+	cfg: State<'r, Arc<Cfg>>,
+	pool: State<'r, PgPool>,
+) -> TplResult {
+	endpoint(cfg, pool, TplMode::Scores).await
 }
 
-async fn patch_server(req: Request<Arc<Cfg>>) -> tide::Result {
-	let state = req.state();
-	let files = fs::read_dir(&*state.patch_server).unwrap();
-	Ok(PatchServer {
-		round: &*state.round,
+#[get("/uptime")]
+async fn uptime<'r>(
+	cfg: State<'r, Arc<Cfg>>,
+	pool: State<'r, PgPool>,
+) -> TplResult {
+	endpoint(cfg, pool, TplMode::Scores).await
+}
+
+#[get("/slas")]
+async fn slas<'r>(
+	cfg: State<'r, Arc<Cfg>>,
+	pool: State<'r, PgPool>,
+) -> TplResult {
+	endpoint(cfg, pool, TplMode::Scores).await
+}
+
+#[get("/patch-server")]
+async fn patch_server<'r>(cfg: State<'r, Arc<Cfg>>) -> TplResult {
+	let files = fs::read_dir(&*cfg.patch_server).unwrap();
+	render_tpl(PatchServer {
+		round: &*cfg.round,
 		files: files
 			.into_iter()
 			.map(|f| f.unwrap().file_name().into_string().unwrap())
 			.collect::<Vec<_>>(),
-	}
-	.into())
+	})
 }
 
-async fn leaderboard(req: Request<Arc<Cfg>>) -> tide::Result {
-	let state = req.state();
-	let mut conn = req.sqlx_conn::<Postgres>().await;
-	let teams = get_leaderboard(&mut *conn).await;
+#[get("/leaderboard")]
+async fn leaderboard<'r>(
+	cfg: State<'r, Arc<Cfg>>,
+	pool: State<'r, PgPool>,
+) -> TplResult {
+	let mut conn = pool.acquire().await.unwrap();
+	let teams = get_leaderboard(&mut conn).await;
 
-	Ok(Leaderboard {
-		round: &*state.round,
+	render_tpl(Leaderboard {
+		round: &*cfg.round,
 		teams,
-	}
-	.into())
+	})
 }
 
 pub async fn start(pool: PgPool, cfg: Arc<Cfg>) -> Result<()> {
-	let mut app = tide::with_state(cfg.clone());
+	let config = Config {
+		port: cfg.web.port,
+		address: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+		..Config::default()
+	};
 
-	app.with(SQLxMiddleware::from(pool));
-	app.at("/").get(scores);
-	app.at("/scores").get(scores);
-	app.at("/uptime").get(uptime);
-	app.at("/slas").get(slas);
-	app.at("/leaderboard").get(leaderboard);
-	app.at("/patch-server").get(patch_server);
-	app.at("/patch-files")
-		.serve_dir(&*cfg.patch_server)
-		.unwrap();
-
-	app.listen(format!("0.0.0.0:{}", cfg.web.port))
+	rocket::custom(config)
+		.mount(
+			"/",
+			routes![root, scores, uptime, slas, patch_server, leaderboard],
+		)
+		.mount("/patch-files", StaticFiles::from(&*cfg.patch_server))
+		.manage(cfg.clone())
+		.manage(pool.clone())
+		.launch()
 		.await
-		.context("Failed to start web server!")
+		.context("Failed to launch web server!")
 }

@@ -13,6 +13,44 @@ pub struct Scores<'a> {
 	pub mode: TplMode,
 }
 
+impl<'a> Scores<'a> {
+	pub fn from_info(
+		cfg: &'a Cfg,
+		teams: Vec<TeamInfo>,
+		services: Vec<SvcInfo>,
+		mode: TplMode,
+	) -> Self {
+		Self {
+			round: &cfg.round,
+			info: teams
+				.split_while(|x| &x.team_id)
+				.map(|x| (x.key.to_owned(), x.slice.to_vec()))
+				.collect::<Vec<(String, Vec<TeamInfo>)>>(),
+			services,
+			injects: cfg
+				.injects
+				.iter()
+				.filter(|i| {
+					(cfg.start + Duration::minutes(i.offset as i64))
+						< Utc::now()
+				})
+				.map(|i| {
+					(
+						i,
+						(cfg.start
+							+ Duration::minutes(
+								(i.offset + i.duration) as i64,
+							))
+						.to_string(),
+					)
+				})
+				.map(|(i, s)| (i.to_owned(), s))
+				.collect::<Vec<_>>(),
+			mode,
+		}
+	}
+}
+
 #[derive(Template)]
 #[template(path = "patch.html")]
 pub struct PatchServer<'a> {
@@ -60,37 +98,4 @@ pub struct Leaderboard<'a> {
 pub struct LeaderboardItem {
 	pub team_id: String,
 	pub sum: Option<i64>,
-}
-
-pub fn info_to_scores(
-	cfg: &Cfg,
-	teams: Vec<TeamInfo>,
-	services: Vec<SvcInfo>,
-	mode: TplMode,
-) -> Scores {
-	Scores {
-		round: &cfg.round,
-		info: teams
-			.split_while(|x| &x.team_id)
-			.map(|x| (x.key.to_owned(), x.slice.to_vec()))
-			.collect::<Vec<(String, Vec<TeamInfo>)>>(),
-		services,
-		injects: cfg
-			.injects
-			.iter()
-			.filter(|i| {
-				(cfg.start + Duration::minutes(i.offset as i64)) < Utc::now()
-			})
-			.map(|i| {
-				(
-					i,
-					(cfg.start
-						+ Duration::minutes((i.offset + i.duration) as i64))
-					.to_string(),
-				)
-			})
-			.map(|(i, s)| (i.to_owned(), s))
-			.collect::<Vec<_>>(),
-		mode,
-	}
 }

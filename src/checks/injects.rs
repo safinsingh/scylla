@@ -1,9 +1,9 @@
 use crate::config::{Cfg, SharedService};
 use anyhow::{Error, Result};
-use async_std::task;
 use chrono::{Duration, Utc};
 use futures::future;
 use std::sync::Arc;
+use tokio::time;
 
 pub async fn wait(cfg: Arc<Cfg>) -> Result<()> {
 	future::try_join_all(cfg.injects.iter().map(|inject| {
@@ -21,7 +21,7 @@ pub async fn wait(cfg: Arc<Cfg>) -> Result<()> {
 				until.num_minutes()
 			);
 
-			task::sleep(until.to_std()?).await;
+			time::sleep(until.to_std()?).await;
 			let mut services = new_cfg._services.lock().await;
 
 			for (bx_id, bx_svcs) in inject.new_services.iter() {

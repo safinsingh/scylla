@@ -1,22 +1,17 @@
 use super::Service;
 use anyhow::Result;
-use async_std::{
-	future,
-	net::{SocketAddrV4, TcpStream},
-};
 use async_trait::async_trait;
-use std::time::Duration;
+use std::net::SocketAddrV4;
+use tokio::net::TcpStream;
 
 #[derive(Debug)]
 pub struct TcpCheck {
-	pub sock: SocketAddrV4,
+	pub remote: SocketAddrV4,
 }
 
 #[async_trait]
 impl Service for TcpCheck {
-	async fn is_up(&self, timeout: Duration) -> Result<bool> {
-		Ok(future::timeout(timeout, TcpStream::connect(&self.sock))
-			.await?
-			.is_ok())
+	async fn is_up(&self) -> Result<()> {
+		Ok(TcpStream::connect(&self.remote).await.map(|_| ())?)
 	}
 }

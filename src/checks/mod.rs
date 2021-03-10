@@ -5,14 +5,14 @@ use crate::{
 		PgPool,
 	},
 };
-use anyhow::{Context as _, Result};
-use async_std::{
-	channel::{Receiver, Sender},
-	stream, task,
-};
+use anyhow::{anyhow, Context as _, Result};
 use async_trait::async_trait;
-use futures::{future, StreamExt};
+use futures::future;
 use std::{fmt::Debug, sync::Arc, time::Duration};
+use tokio::{
+	sync::mpsc::{UnboundedReceiver, UnboundedSender},
+	task, time,
+};
 
 #[derive(Debug, Clone)]
 pub struct SvcMeta {
@@ -29,26 +29,26 @@ pub enum ChanMsg {
 
 #[async_trait]
 pub trait Service: Send + Sync + Debug {
-	async fn is_up(&self, timeout: Duration) -> Result<bool>;
+	async fn is_up(&self) -> Result<()>;
 	async fn poll(
 		&self,
-		chan: Sender<ChanMsg>,
+		chan: UnboundedSender<ChanMsg>,
 		timeout: Duration,
 		cx: Arc<SvcMeta>,
 	) -> Result<()> {
-		let message = match self.is_up(timeout).await {
-			Ok(true) => ChanMsg::Uptime(cx.clone()),
-			_ => ChanMsg::Error(cx.clone()),
+		let message = match time::timeout(timeout, self.is_up()).await {
+			Ok(_) => ChanMsg::Uptime(cx.clone()),
+			Err(_) => ChanMsg::Error(cx.clone()),
 		};
-		chan.send(message).await.with_context(|| {
+		chan.send(message).with_context(|| {
 			format!("Failed to send poll message to channel: {:?}", cx.clone())
 		})
 	}
 }
 
-pub async fn enter_event_loop(cfg: Arc<Cfg>, tx: Sender<ChanMsg>) {
+pub async fn enter_event_loop(cfg: Arc<Cfg>, tx: UnboundedSender<ChanMsg>) {
 	let jittered = cfg.checks.get_interval();
-	let mut interval = stream::interval(jittered);
+	let mut interval = time::interval(jittered);
 
 	println!("Scoring with interval: {:?}", jittered);
 
@@ -71,16 +71,19 @@ pub async fn enter_event_loop(cfg: Arc<Cfg>, tx: Sender<ChanMsg>) {
 			}
 		});
 
-		interval.next().await;
+		interval.tick().await;
 	}
 }
 
 pub async fn enter_recv_loop(
-	rx: Receiver<ChanMsg>,
+	mut rx: UnboundedReceiver<ChanMsg>,
 	pool: PgPool,
 ) -> Result<()> {
 	loop {
-		let m = rx.recv().await?;
+		let m = rx
+			.recv()
+			.await
+			.ok_or(anyhow!("Failed to recieve message from channel!"))?;
 		match m {
 			ChanMsg::Uptime(meta) => persist_uptime(&meta, pool.clone()).await,
 			ChanMsg::Error(meta) => persist_downtime(&meta, pool.clone()).await,

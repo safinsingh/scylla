@@ -1,9 +1,8 @@
 use crate::web::templates::{LeaderboardItem, SvcInfo, TeamInfo};
-use sqlx::{Acquire, Postgres};
-use tide_sqlx::ConnectionWrapInner;
+use sqlx::{pool::PoolConnection, Postgres};
 
 pub async fn get_team_info(
-	conn: &mut ConnectionWrapInner<Postgres>,
+	conn: &mut PoolConnection<Postgres>,
 ) -> Vec<TeamInfo> {
 	sqlx::query_as!(
 		TeamInfo,
@@ -16,13 +15,13 @@ pub async fn get_team_info(
 		 	  ORDER BY services.team_id ASC, services.svc_id DESC;
 		"#
 	)
-	.fetch_all(conn.acquire().await.unwrap())
+	.fetch_all(conn)
 	.await
 	.unwrap()
 }
 
 pub async fn get_all_services(
-	conn: &mut ConnectionWrapInner<Postgres>,
+	conn: &mut PoolConnection<Postgres>,
 ) -> Vec<SvcInfo> {
 	sqlx::query_as!(
 		SvcInfo,
@@ -30,13 +29,13 @@ pub async fn get_all_services(
 			SELECT DISTINCT vm_id, svc_id FROM services;
 		"#
 	)
-	.fetch_all(conn.acquire().await.unwrap())
+	.fetch_all(conn)
 	.await
 	.unwrap()
 }
 
 pub async fn get_leaderboard(
-	conn: &mut ConnectionWrapInner<Postgres>,
+	conn: &mut PoolConnection<Postgres>,
 ) -> Vec<LeaderboardItem> {
 	sqlx::query_as!(
 		LeaderboardItem,
@@ -47,7 +46,7 @@ pub async fn get_leaderboard(
 			ORDER BY sum DESC;
 		"#
 	)
-	.fetch_all(conn.acquire().await.unwrap())
+	.fetch_all(conn)
 	.await
 	.unwrap()
 }

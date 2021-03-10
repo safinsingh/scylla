@@ -1,13 +1,16 @@
 use crate::checks::{tcp::TcpCheck, udp::UdpCheck, Service, SvcMeta};
 use anyhow::{Context as _, Result};
-use async_std::{
-	net::{Ipv4Addr, SocketAddrV4},
-	sync::Mutex,
-};
 use chrono::{DateTime, Utc};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+	collections::HashMap,
+	net::{Ipv4Addr, SocketAddrV4},
+	path::PathBuf,
+	sync::Arc,
+	time::Duration,
+};
+use tokio::sync::Mutex;
 
 const FIXME: &str = "172.30";
 
@@ -40,13 +43,17 @@ impl SharedService {
 	) -> Result<Self> {
 		let inner: Box<dyn Service> = match svc.ty {
 			ServiceConfigTy::Tcp { port } => Box::new(TcpCheck {
-				sock: get_sock_addr(team_meta, vm_meta, port)?,
+				remote: get_sock_addr(team_meta, vm_meta, port)?,
 			}),
 			ServiceConfigTy::Ssh { port } => Box::new(TcpCheck {
-				sock: get_sock_addr(team_meta, vm_meta, port.unwrap_or(22))?,
+				remote: get_sock_addr(team_meta, vm_meta, port.unwrap_or(22))?,
 			}),
-			ServiceConfigTy::Udp { port } => Box::new(UdpCheck {
-				sock: get_sock_addr(team_meta, vm_meta, port)?,
+			ServiceConfigTy::Udp { port, bind_port } => Box::new(UdpCheck {
+				remote: get_sock_addr(team_meta, vm_meta, port)?,
+				socket_addr: SocketAddrV4::new(
+					Ipv4Addr::new(0, 0, 0, 0),
+					bind_port,
+				),
 			}),
 		};
 
@@ -188,6 +195,6 @@ pub struct ServiceConfig {
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum ServiceConfigTy {
 	Tcp { port: u16 },
-	Udp { port: u16 },
+	Udp { port: u16, bind_port: u16 },
 	Ssh { port: Option<u16> },
 }
