@@ -8,12 +8,12 @@ pub async fn get_team_info(
 	sqlx::query_as!(
 		TeamInfo,
 		r#"
-			SELECT	services.team_id, services.vm_id, services.svc_id,
-						services.check_count, services.uptime_score, services.sla_count,
-						services.latest_uptime_status
-						FROM	teams
-			INNER 	JOIN	services ON services.team_id = teams.team_id
-			ORDER BY	services.team_id ASC, services.svc_id DESC;
+				 SELECT services.team_id, services.vm_id, services.svc_id,
+						  services.check_count, services.uptime_score, services.sla_count,
+						  services.latest_uptime_status
+						  FROM	teams
+			INNER JOIN services ON services.team_id = teams.team_id
+		 	  ORDER BY services.team_id ASC, services.svc_id DESC;
 		"#
 	)
 	.fetch_all(conn.acquire().await.unwrap())
@@ -41,10 +41,10 @@ pub async fn get_leaderboard(
 	sqlx::query_as!(
 		LeaderboardItem,
 		r#"
-			SELECT team_id, SUM(uptime_score - (sla_count * 1))
-				FROM services
-				GROUP BY team_id
-				ORDER BY sum DESC;
+		SELECT team_id, SUM(uptime_score - (sla_count * 1))
+			FROM services
+			GROUP BY team_id
+			ORDER BY sum DESC;
 		"#
 	)
 	.fetch_all(conn.acquire().await.unwrap())

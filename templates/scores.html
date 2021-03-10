@@ -9,9 +9,9 @@
 			{% endfor %}
 		</thead>
 		<tbody>
-			{% for (team_name, team_meta) in info %}
+			{% for (team_id, team_meta) in info %}
 				<tr>
-					<th scope="row">{{ team_name }}</th>
+					<th scope="row">{{ team_id }}</th>
 					{% for svc in team_meta %}
 						{% match mode %}
 						{% when TplMode::Scores %}

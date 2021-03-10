@@ -1,19 +1,15 @@
-use crate::config::{service_from_config, Cfg, SharedService};
-use async_std::{sync::Mutex, task};
+use crate::config::{Cfg, SharedService};
+use async_std::task;
 use chrono::{Duration, Utc};
 use futures::future;
 use std::sync::Arc;
 
-pub async fn enter_waiter(
-	cfg: Arc<Cfg>,
-	services: Arc<Mutex<Vec<SharedService>>>,
-) {
+pub async fn wait(cfg: Arc<Cfg>) {
 	future::join_all(cfg.injects.iter().map(|inject| {
-		let cfg = cfg.clone();
-		let services = services.clone();
+		let new_cfg = cfg.clone();
 
 		async move {
-			let until = (cfg.start
+			let until = (new_cfg.start
 				+ Duration::seconds(
 					((inject.offset + inject.duration) * 60) as i64,
 				)) - Utc::now();
@@ -25,20 +21,23 @@ pub async fn enter_waiter(
 			);
 
 			task::sleep(until.to_std().unwrap()).await;
-			let mut services = services.lock().await;
+			let mut services = new_cfg._services.lock().await;
 
-			for (bx_name, bx_svcs) in inject.new_services.iter() {
+			for (bx_id, bx_svcs) in inject.new_services.iter() {
 				for svc in bx_svcs {
-					for team in cfg.teams.iter() {
-						services.push(service_from_config(
-							svc,
-							team,
-							(&bx_name, &cfg.boxes[bx_name]),
-						));
+					for team in new_cfg.teams.iter() {
+						services.push(
+							SharedService::from_config(
+								svc,
+								team,
+								(&bx_id, &new_cfg.boxes[bx_id]),
+							)
+							.unwrap(),
+						);
 
 						println!(
 							"Added inject {} on box {}!",
-							inject.meta.title, bx_name
+							inject.meta.title, bx_id
 						);
 					}
 				}

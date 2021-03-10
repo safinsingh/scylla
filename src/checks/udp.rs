@@ -1,29 +1,21 @@
-use super::{CheckMeta, Service};
+use super::Service;
 use anyhow::Result;
-use async_std::{future, net::UdpSocket};
+use async_std::{
+	future,
+	net::{SocketAddrV4, UdpSocket},
+};
 use async_trait::async_trait;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct UdpCheck {
-	pub host: Arc<String>,
-	pub meta: Arc<CheckMeta>,
-}
-
-impl UdpCheck {
-	pub fn new(host: Arc<String>, meta: CheckMeta) -> UdpCheck {
-		Self {
-			host,
-			meta: Arc::new(meta),
-		}
-	}
+	pub sock: SocketAddrV4,
 }
 
 #[async_trait]
 impl Service for UdpCheck {
-	fn get_meta(&self) -> Arc<CheckMeta> { self.meta.clone() }
 	async fn is_up(&self, timeout: Duration) -> Result<bool> {
-		Ok(future::timeout(timeout, UdpSocket::bind(&*self.host))
+		Ok(future::timeout(timeout, UdpSocket::bind(&self.sock))
 			.await?
 			.is_ok())
 	}

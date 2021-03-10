@@ -1,6 +1,10 @@
-use crate::checks::{tcp::TcpCheck, udp::UdpCheck, CheckMeta, Service};
+use crate::checks::{tcp::TcpCheck, udp::UdpCheck, Service, SvcMeta};
+use anyhow::{Context as _, Result};
+use async_std::{
+	net::{Ipv4Addr, SocketAddrV4},
+	sync::Mutex,
+};
 use chrono::{DateTime, Utc};
-use core::panic;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -8,42 +12,55 @@ use std::{
 	time::Duration,
 };
 
-pub type SharedService = Box<dyn Service>;
 const FIXME: &str = "172.30";
 
-fn get_check_inner(
-	svc: &ServiceConfig,
-	team: (&String, &Team),
-	bx: (&String, &ScyllaBox),
-) -> (Arc<String>, CheckMeta) {
-	(
-		Arc::new(format!(
-			"{}.{}.{}:{}",
-			FIXME,
-			team.1.subnet,
-			bx.1.host,
-			svc.port.unwrap()
-		)),
-		CheckMeta {
-			team_name: team.0.to_owned(),
-			vm_name: bx.0.to_owned(),
-			svc_name: svc.id.to_owned(),
-		},
-	)
+fn get_sock_addr(team: &Team, vm: &Vm, port: u16) -> Result<SocketAddrV4> {
+	let host = format!("{}.{}.{}", FIXME, team.subnet, vm.host);
+
+	Ok(SocketAddrV4::new(
+		host.parse::<Ipv4Addr>().with_context(|| {
+			format!(
+				"Failed to parse team subnets and vm hosts as a valid IP \
+				 address on host: {}",
+				host
+			)
+		})?,
+		port,
+	))
 }
 
-pub fn service_from_config(
-	svc: &ServiceConfig,
-	team: (&String, &Team),
-	bx: (&String, &ScyllaBox),
-) -> SharedService {
-	let desugared = svc.desugar();
-	let (host, meta) = get_check_inner(svc, team, bx);
+#[derive(Debug)]
+pub struct SharedService {
+	pub inner: Box<dyn Service>,
+	pub meta: Arc<SvcMeta>,
+}
 
-	match desugared.ty {
-		ServiceTy::TCP => Box::new(TcpCheck::new(host, meta)),
-		ServiceTy::UDP => Box::new(UdpCheck::new(host, meta)),
-		_ => unimplemented!(),
+impl SharedService {
+	pub fn from_config(
+		(svc_id, svc_meta): (&String, &ServiceConfig),
+		(team_id, team_meta): (&String, &Team),
+		(vm_id, vm_meta): (&String, &Vm),
+	) -> Result<Self> {
+		let inner: Box<dyn Service> = match *svc_meta {
+			ServiceConfig::Tcp { port } => Box::new(TcpCheck {
+				sock: get_sock_addr(team_meta, vm_meta, port)?,
+			}),
+			ServiceConfig::Ssh { port } => Box::new(TcpCheck {
+				sock: get_sock_addr(team_meta, vm_meta, port.unwrap_or(22))?,
+			}),
+			ServiceConfig::Udp { port } => Box::new(UdpCheck {
+				sock: get_sock_addr(team_meta, vm_meta, port)?,
+			}),
+		};
+
+		Ok(Self {
+			inner,
+			meta: Arc::new(SvcMeta {
+				team_id: team_id.clone(),
+				vm_id: vm_id.clone(),
+				svc_id: svc_id.clone(),
+			}),
+		})
 	}
 }
 
@@ -77,32 +94,35 @@ mod date_fmt {
 	}
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Cfg {
 	pub round: String,
 	#[serde(with = "date_fmt")]
 	pub start: DateTime<Utc>,
-	pub boxes: HashMap<String, ScyllaBox>,
+	pub boxes: HashMap<String, Vm>,
 	pub checks: CheckSettings,
 	pub teams: HashMap<String, Team>,
 	#[serde(default = "Vec::new")]
 	pub injects: Vec<Inject>,
 	#[serde(rename = "patchServer")]
 	pub patch_server: PathBuf,
+	#[serde(skip)]
+	pub _services: Mutex<Vec<SharedService>>,
 }
 
 impl Cfg {
-	pub fn get_services(&self) -> Vec<Box<dyn Service>> {
-		self.boxes
-			.iter()
-			.flat_map(|bx| {
-				self.teams.iter().flat_map(move |team| {
-					bx.1.services
-						.iter()
-						.map(move |svc| service_from_config(svc, team, bx))
-				})
-			})
-			.collect::<Vec<_>>()
+	pub fn set_services(mut self) -> Result<Self> {
+		let mut __services = Vec::new();
+		for vm in self.boxes.iter() {
+			for team in self.teams.iter() {
+				for svc in vm.1.services.iter() {
+					__services.push(SharedService::from_config(svc, team, vm)?);
+				}
+			}
+		}
+
+		self._services = Mutex::new(__services);
+		Ok(self)
 	}
 }
 
@@ -117,7 +137,7 @@ pub struct Team {
 pub struct Inject {
 	pub offset: usize,
 	pub duration: usize,
-	pub new_services: HashMap<String, Vec<ServiceConfig>>,
+	pub new_services: HashMap<String, HashMap<String, ServiceConfig>>,
 	pub meta: InjectMeta,
 }
 
@@ -145,47 +165,15 @@ impl CheckSettings {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ScyllaBox {
+pub struct Vm {
 	host: u8,
-	pub services: Vec<ServiceConfig>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ServiceConfig {
-	pub id: String,
-	#[serde(rename = "type")]
-	ty: ServiceTy,
-	port: Option<u16>,
+	pub services: HashMap<String, ServiceConfig>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub enum ServiceTy {
-	#[serde(rename = "ssh")]
-	SSH,
-	#[serde(rename = "http")]
-	HTTP,
-	#[serde(rename = "tcp")]
-	TCP,
-	#[serde(rename = "udp")]
-	UDP,
-}
-
-impl ServiceConfig {
-	fn new(&self, port: u16, ty: ServiceTy) -> Self {
-		Self {
-			port: Some(port),
-			ty,
-			id: self.id.to_owned(),
-		}
-	}
-
-	fn desugar(&self) -> Self {
-		match (self.ty, self.port) {
-			(ServiceTy::SSH, p) => self.new(p.unwrap_or(22), ServiceTy::TCP),
-			(ServiceTy::HTTP, p) => self.new(p.unwrap_or(80), ServiceTy::TCP),
-			| (cfg @ ServiceTy::TCP, Some(p))
-			| (cfg @ ServiceTy::UDP, Some(p)) => self.new(p, cfg),
-			_ => panic!("TCP or UDP-style services must specify a port!"),
-		}
-	}
+#[serde(tag = "type")]
+pub enum ServiceConfig {
+	Tcp { port: u16 },
+	Udp { port: u16 },
+	Ssh { port: Option<u16> },
 }
