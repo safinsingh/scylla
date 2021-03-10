@@ -63,7 +63,7 @@ pub async fn enter_event_loop(cfg: Arc<Cfg>, tx: Sender<ChanMsg>) {
 				future::join_all(services.iter().map(|svc| {
 					svc.inner.poll(
 						shared_tx.clone(),
-						Duration::from_secs(5),
+						Duration::from_secs(cfg.checks.timeout as u64),
 						svc.meta.clone(),
 					)
 				}))

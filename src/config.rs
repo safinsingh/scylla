@@ -156,15 +156,17 @@ pub struct InjectMeta {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct CheckSettings {
-	pub interval: usize,
-	pub jitter: isize,
+	pub interval: u16,
+	pub jitter: i16,
+	pub timeout: u8,
 }
 
 impl CheckSettings {
 	pub fn get_interval(&self) -> Duration {
 		Duration::from_secs(
-			(self.interval as isize
-				+ rand::thread_rng().gen_range(-self.jitter..self.jitter)) as u64,
+			(self.interval as i32
+				+ rand::thread_rng().gen_range(-self.jitter..self.jitter)
+					as i32) as u64,
 		)
 	}
 }
