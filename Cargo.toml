@@ -28,3 +28,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "postgres", "macros", "offline"] }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "time"] }
+trust-dns-proto = { version = "0.20", features = ["dnssec", "serde-config"] }
+trust-dns-resolver = { version = "0.20", features = ["dns-over-rustls", "serde-config"] }
+url = { version = "2.2.1", features = ["serde"] }

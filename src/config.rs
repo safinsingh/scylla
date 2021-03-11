@@ -1,5 +1,6 @@
 use crate::checks::{
-	http::HttpCheck, tcp::TcpCheck, udp::UdpCheck, Service, SvcMeta,
+	dns::DnsCheck, http::HttpCheck, tcp::TcpCheck, udp::UdpCheck, Service,
+	SvcMeta,
 };
 use anyhow::{Context as _, Result};
 use chrono::{DateTime, Utc};
@@ -11,7 +12,7 @@ use serde::{
 use std::{
 	collections::HashMap,
 	fmt,
-	net::{Ipv4Addr, SocketAddrV4},
+	net::{Ipv4Addr, Ipv6Addr, SocketAddrV4},
 	path::PathBuf,
 	str::FromStr,
 	sync::Arc,
@@ -74,6 +75,19 @@ impl SharedService {
 				ssl: false,
 				content_hash: content_hash.clone(),
 			}),
+			ServiceConfigTy::Https {
+				port,
+				ref method,
+				ref content_hash,
+			} => Box::new(HttpCheck {
+				remote: get_sock_addr(team_meta, vm_meta, port.unwrap_or(443))?,
+				method: method.0.clone(),
+				ssl: true,
+				content_hash: content_hash.clone(),
+			}),
+			ServiceConfigTy::Dns { name, record } => {
+				Box::new(DnsCheck { name, record })
+			}
 		};
 
 		Ok(Self {
@@ -231,6 +245,23 @@ pub enum ServiceConfigTy {
 		method: HttpMethod,
 		content_hash: Option<String>,
 	},
+	Https {
+		port: Option<u16>,
+		method: HttpMethod,
+		content_hash: Option<String>,
+	},
+	Dns {
+		name: Ipv4Addr,
+		#[serde(flatten)]
+		record: DnsRecord,
+	},
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "recordType", rename_all = "lowercase")]
+pub enum DnsRecord {
+	A { addr: Ipv4Addr },
+	AAAA { addr: Ipv6Addr },
 }
 
 impl Serialize for HttpMethod {

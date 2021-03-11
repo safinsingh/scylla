@@ -1,0 +1,195 @@
+{
+  "db": "PostgreSQL",
+  "181b654188ae96859fc64ef3a9e2b7a6ee6d9043e6b87c39dba1e4a57ce4638b": {
+    "query": "\n\t\t\t\t\tINSERT INTO services(svc_id, vm_id, team_id)\n\t\t\t\t\t\tVALUES($1, $2, $3);\n\t\t\t\t\t",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Varchar"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "1a40eb9eec705893505603e78c18e0f3edaca92f49882422b87f63fbb54176c5": {
+    "query": "\n\t\tUPDATE\tservices\n\t\t\tSET\tcheck_count = check_count + 1,\n\t\t\t\t\tuptime_score = uptime_score + 1,\n\t\t\t\t\trecurring_down = 0,\n\t\t\t\t\tlatest_uptime_status = TRUE\n\t\t WHERE\tsvc_id = $1 AND\n\t\t\t\t\tvm_id = $2 AND\n\t\t\t\t\tteam_id = $3;\n\t\t",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "1a8b8b539340569a2c9692c35ea887c954155d40a0e5f42ee4289fe2c76764fa": {
+    "query": "\n\t\t\t\t SELECT services.team_id, services.vm_id, services.svc_id,\n\t\t\t\t\t\t  services.check_count, services.uptime_score, services.sla_count,\n\t\t\t\t\t\t  services.latest_uptime_status\n\t\t\t\t\t\t  FROM\tteams\n\t\t\tINNER JOIN services ON services.team_id = teams.team_id\n\t\t \t  ORDER BY services.team_id ASC, services.svc_id DESC;\n\t\t",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "team_id",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 1,
+          "name": "vm_id",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "svc_id",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "check_count",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 4,
+          "name": "uptime_score",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 5,
+          "name": "sla_count",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 6,
+          "name": "latest_uptime_status",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "3d94954eb45b79a6f2e62be3b3649012d84b2b7025b639524a79287e975e87f9": {
+    "query": "\n\t\tUPDATE\tservices\n\t\t\tSET\tsla_count = sla_count + 1\n\t\t WHERE\tsvc_id = $1 AND\n\t\t\t\t\tvm_id = $2 AND\n\t\t\t\t\tteam_id = $3;\n\t\t",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "7176a77b0bd85722d139c4f77188a5e6c33c45157d00846a063622e47f9d4711": {
+    "query": "INSERT INTO vms(vm_id, team_id) VALUES($1, $2);",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "ba671c8a0130f92a20e51f592295a45d25d3d9476176739e586deedb5f0e6087": {
+    "query": "\n\t\tUPDATE\tservices\n\t\t\tSET\tcheck_count = check_count + 1,\n\t\t\t\t\trecurring_down = recurring_down + 1,\n\t\t\t\t\tlatest_uptime_status = FALSE\n\t\t WHERE\tsvc_id = $1 AND\n\t\t\t\t\tvm_id = $2 AND\n\t\t\t\t\tteam_id = $3\n\tRETURNING\tservices.recurring_down;\n\t\t",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "recurring_down",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "bc6daaace2ef2718b16c18e168dd6828b080ea3c28911da1cc4c48d63d9fe856": {
+    "query": "\n\t\tSELECT team_id, SUM(uptime_score - (sla_count * 1))\n\t\t\tFROM services\n\t\t\tGROUP BY team_id\n\t\t\tORDER BY sum DESC;\n\t\t",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "team_id",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 1,
+          "name": "sum",
+          "type_info": "Int8"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        null
+      ]
+    }
+  },
+  "cbdd076c574969e44518d85c84e877727b781de38cb69e9c8a2baad609a2f322": {
+    "query": "INSERT INTO teams(team_id, pass) VALUES($1, $2);",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "ea427798c42efa13fa10bd6128c3b56f166b3bd680f1ced2c98ca5dcd371a2e7": {
+    "query": "\n\t\t\tSELECT DISTINCT vm_id, svc_id FROM services;\n\t\t",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "vm_id",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 1,
+          "name": "svc_id",
+          "type_info": "Varchar"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        false
+      ]
+    }
+  }
+}

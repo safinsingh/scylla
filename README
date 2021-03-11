@@ -15,8 +15,8 @@ A high-performance RvB engine to emulate the CyberPatriot National Finals compet
 
 - [x] establishing a connection over TCP
 - [x] establishing a connection over UDP
-- [ ] querying DNS records
-- [ ] sending HTTP requests and verifying page content
+- [x] querying DNS records
+- [x] sending HTTP requests and verifying page content
 - [ ] retrieving files over FTP/SMB and verifying hashes
 
 `scylla`'s documentation is a work in progress.
